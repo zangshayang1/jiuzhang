@@ -1,0 +1,25 @@
+This autoCompletion project is based on Hadoop-Mapreduce frame and N-gram language model.
+
+The essence of this model is, given N, to count the occurrences of 2-N consecutive words.
+
+The above can be done with the following two Mapreduce job while the highlights are in the second one.
+
+First our goal is, given a prefix phrase, stats the occurrences of THE NEXT WORD. 
+
+    Now if we split K consecutive words into k-1 prefix phrase and 1 last word, 
+
+    the occurrences we accumulated from the 1st MapReduce become the occurrences of THE LAST WORD.
+
+    Why does the coming autoCompletion suggest more than 1 word? 
+
+    Magic "Like" call in MySQL will consider all possible match, given one or more input word.
+
+Second we use TreeMap to fulfill sorting and mapping needs in second MapReduce.
+
+    As the second Mapper outputs <key>prefix_phrase</key> <value>[last_word=count]</value>
+
+    after shuffle, for each key, you can store {count:last_word} as {k:v} pair in TreeMap and sort them according to count.
+
+    Why do you want to sort it? So your autoCompletion makes sense because they are the top frequently used ones.
+
+    

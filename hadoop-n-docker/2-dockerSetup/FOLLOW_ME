@@ -1,0 +1,175 @@
+
+Run hadoop on docker has nothing to do with your local hadoop. 
+The hadoop frame that you are going to run is burnt into the following hadoop-docker image.
+
+
+1. start docker machine
+    $ docker-machine start
+    $ eval $(docker-machine env)
+
+2. download hadoop image if not yet done
+    $ docker pull <hadoop-on-docker IMAGE>
+
+3. create hadoop network the first time you want to run more than one hadoop node on docker
+    $ docker create network --driver=bridge hadoop
+    # bridge networks are isolated networks on a single Engine installation
+    # you are creating a group with currently no member in it
+    # later when you init a contain, you can specify --net=hadoop to make it join the network
+
+3. refer to the following script to start docker container
+
+---------------------------------------------------------------------------------------------
+#!/bin/bash
+
+# the default node number is 3
+N=${1:-3}
+
+
+# start hadoop master container
+docker rm -f hadoop-master &> /dev/null
+echo "start hadoop-master container..."
+
+# volume dir
+mkdir ~/src/
+chmod -R 777 ~/src
+
+docker run -itd \
+                --net=hadoop \
+                -p 50070:50070 \
+                -p 8088:8088 \
+                -v ~/src:/root/src \
+                --name hadoop-master \
+                --hostname hadoop-master \
+                joway/hadoop-cluster &> /dev/null
+
+
+# start hadoop slave container
+i=1
+while [ $i -lt $N ]
+do
+        docker rm -f hadoop-slave$i &> /dev/null
+        echo "start hadoop-slave$i container..."
+        docker run -itd \
+                        --net=hadoop \
+                        --name hadoop-slave$i \
+                        --hostname hadoop-slave$i \
+                        joway/hadoop-cluster &> /dev/null
+        i=$(( $i + 1 ))
+done 
+
+# get into hadoop master container
+docker exec -it hadoop-master bash
+
+----------------------------------------------------------------------------------------
+WHAT ESSENTIALLY IS IN THE TOP LAYER OF THE IMAGE IS THE FOLLOW DOCKERFILE
+
+AT A HIGH LEVEL THE FOLLOWING SCRIPT INCLUDES
+1. INSTALL HADOOP AND DEPENDENCIES
+2. COPY OVER CONFIG FILES
+3. BUILD BASIC DIR STRCTURE
+4. VOLUMN UP
+5. SET ENV PATH FOR JAVA/HADOOP
+6. PUT HADOOP INTO RUNNING
+----------------------------------------------------------------------------------------
+
+FROM ubuntu:14.04
+
+MAINTAINER Joway <joway.w@gmail.com>
+
+WORKDIR /root
+
+# install openssh-server, openjdk and wget
+RUN apt-get -qq update && apt-get -qq install -y openssh-server openjdk-7-jdk wget
+
+# install hadoop 2.7.2
+RUN wget https://github.com/kiwenlau/compile-hadoop/releases/download/2.7.2/hadoop-2.7.2.tar.gz && \
+    tar -xzvf hadoop-2.7.2.tar.gz && \
+    mv hadoop-2.7.2 /usr/local/hadoop && \
+    rm hadoop-2.7.2.tar.gz
+
+# set environment variable
+ENV JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64 
+ENV HADOOP_HOME=/usr/local/hadoop 
+ENV PATH=$PATH:/usr/local/hadoop/bin:/usr/local/hadoop/sbin 
+
+# ssh without key
+RUN ssh-keygen -t rsa -f ~/.ssh/id_rsa -P '' && \
+    cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+
+RUN mkdir -p ~/hdfs/namenode && \ 
+    mkdir -p ~/hdfs/datanode && \
+    mkdir $HADOOP_HOME/logs
+
+COPY config/* /tmp/
+
+RUN mv /tmp/ssh_config ~/.ssh/config && \
+    mv /tmp/hadoop-env.sh /usr/local/hadoop/etc/hadoop/hadoop-env.sh && \
+    mv /tmp/hdfs-site.xml $HADOOP_HOME/etc/hadoop/hdfs-site.xml && \ 
+    mv /tmp/core-site.xml $HADOOP_HOME/etc/hadoop/core-site.xml && \
+    mv /tmp/mapred-site.xml $HADOOP_HOME/etc/hadoop/mapred-site.xml && \
+    mv /tmp/yarn-site.xml $HADOOP_HOME/etc/hadoop/yarn-site.xml && \
+    mv /tmp/slaves $HADOOP_HOME/etc/hadoop/slaves && \
+    mv /tmp/start-hadoop.sh ~/start-hadoop.sh && \
+    mv /tmp/run-wordcount.sh ~/run-wordcount.sh
+
+RUN chmod +x ~/start-hadoop.sh && \
+    chmod +x ~/run-wordcount.sh && \
+    chmod +x $HADOOP_HOME/sbin/start-dfs.sh && \
+    chmod +x $HADOOP_HOME/sbin/start-yarn.sh 
+
+# format namenode
+RUN /usr/local/hadoop/bin/hdfs namenode -format
+
+RUN echo '\
+export JAVA_HOME=/usr/java/default \n\
+export PATH=${JAVA_HOME}/bin:${PATH} \n\
+export HADOOP_CLASSPATH=export HADOOP_CLASSPATH=/usr/lib/jvm/java-7-openjdk-amd64/lib/tools.jar \n\
+' >> ~/.bashrc 
+
+RUN mkdir /root/src/
+VOLUME /root/src/
+
+CMD [ "sh", "-c", "service ssh start; bash"]
+
+Mon Sep 19 09:57:11 ~/Deskto
+
+------------------------------------------------------------------------------------
+4. now you should enter hadoop master container and have "root@hadoop-master:~#" env on docker
+
+5. call up hadoop
+    $HADOOP_HOME/sbin/start-dfs.sh
+    $HADOOP_HOME/sbin/start-yarn.sh
+
+6. refer to the following script to do a test running
+
+--------------------------------------------------------------------------------------------
+#!/bin/bash
+
+# test the hadoop cluster by running wordcount
+
+# create input files 
+mkdir input
+echo "Hello Docker" >input/file2.txt
+echo "Hello Hadoop" >input/file1.txt
+
+# create input directory on HDFS
+hadoop fs -mkdir -p input
+
+# put input files to HDFS
+hdfs dfs -put ./input/* input
+
+# run wordcount 
+hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/sources/hadoop-mapreduce-examples-2.7.2-sources.jar org.apache.hadoop.examples.WordCount input output
+
+# print the input files
+echo -e "\ninput file1.txt:"
+hdfs dfs -cat input/file1.txt
+
+echo -e "\ninput file2.txt:"
+hdfs dfs -cat input/file2.txt
+
+# print the output of wordcount
+echo -e "\nwordcount output:"
+hdfs dfs -cat output/part-r-00000
+hdfs dfs -rm -r output/
+---------------------------------------------------------------------------------------------

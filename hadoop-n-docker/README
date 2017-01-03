@@ -1,0 +1,7 @@
+This dir contains the hadoop exercise files and instructions I used.
+
+I only tested these on my localhost instead of using docker to create multiple virtual containers because:
+
+1. my old mac CPU doesn't support virtualization.
+2. there isn't enough memory to support running hadoop job if i set up a virtual machine with VirtualBox. In addition, I tried it on Ubuntu but it always always run into the problem described at: http://wiki.apache.org/hadoop/ConnectionRefused
+

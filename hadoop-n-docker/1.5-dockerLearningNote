@@ -1,0 +1,105 @@
+**** Special thanks to: https://www.viget.com/articles/how-to-use-docker-on-os-x-the-missing-guide ****
+
+I downloaded docker toolbox for mac and used "docker quick-start terminal"
+
+    which will set up a light-weighted Linux-kernel VM on MAC 
+
+    that allows for running docker server.
+
+MAC itself became the docker client.
+
+To test:
+    # after you run "quick-start"
+    # the docker-machine(VM) is initiated automatically within the pop up terminal
+    # so the following cmd was skipped every time you start from "quick-start"
+    $ docker-machine start
+    $ eval $(docker-machine env)
+    # the second step is to connect your shell to the new VM
+    # please check out: https://docs.docker.com/machine/get-started/
+    
+    $ docker run -d -p 8000:80 --name webTest nginx 
+    # download the image nginx from https://hub.docker.com/_/nginx/
+    # start a new container as daemon
+    # publish the container's ports to the host
+    # give it a name webTest
+
+    $ docker ps
+    # check if there is anything running on your docker server
+    $ docker ps -a
+    # check all existing containers. Note: everytime you hit docker run <image>, a container got created.
+
+    $ docker inspect webTest
+    # check specs on the website
+
+    $ docker-machine ip
+    # return the VM's local ip
+    # you can open the webpage on your browser now with $(docker-machine ip):8000
+
+    $ docker logs webTest
+    # check its log
+    
+    $ docker stop webTest
+    # stop the service    
+
+    $ docker rm webTest
+    # remove the container
+    # Or keep the container (in most cases) if you want to restart it next time with the same settings simply by "$ docker start webTest"    
+
+    $ docker-machine stop
+
+Volume Up:
+    $ docker-machine inspect default --format '{{ .Driver.StorePath }}' 
+    # NOTE: how the template is formmatted here.
+
+Container VS. Image
+    IMAGE: a union view of a stack of read-only layers, internally connected using parent-child model, only accessible outside of the running containers in
+           the host's file system. The top-level layer is read by docker implementation to present a single cohesive view as one ready-only IMAGE.
+    # each IMAGE LAYER is a read-only layer with metadata, layer ID and a pointer to parent layer.
+    
+    $ docker create <image-id>
+    # build a CONTAINER from the image by add a read-write layer on top of the image.
+    
+    $ docker start <container-id>
+    # put a container into (RUNNING CONTAINER) an isolated space with processes in it. The processes may change, create and delete within the union file 
+      system captured in the read-write layer.
+
+    $ docker run <image-id>
+    # just combine CREATE and START into one command.
+    
+    $ docker commit <container-id>
+    # whether the container is running or not, it burns the top-level read-write layer into a read-only layer so the contain becomes an immutable image.
+
+    $ docker build <DockerFile> <image-source>
+    # it follows the directives in DockerFile and iteratively call run, commit commands to add new layers onto the basic one.
+
+    $ docker exec <running-docker-id>
+    # execute a process in the running docker's process-space
+
+    $ docker inspect <container-id> || <image-id>
+    # fetch the metadata from the top layer of the container or the image
+    
+    $ docker export <container-id>
+    # it removes the container-related metadata and layer info and creates a file.tar solely out of the content in the union file system for non-Docker usage.
+
+    $ docker save <image-id>
+    # it creates a file.tar of images with their metadata so they can be used on a different host system.
+
+    $ docker history <image-id>
+    # recursively print out the ancestor images of the input image
+
+    $ docker ps 
+    # list all running contains
+    $ docker ps -a
+    # list all existing contains
+    
+    $ docker images
+    # list all existing images
+    $ docker images -a
+    # list all existing images including their parent images
+
+    $ docker stop <container-id> 
+    $ docker kill <container-id>
+    # stop - politely; kill- non-politely;
+
+    $ docker rm <container-id>
+    $ docker rmi <image-id>    

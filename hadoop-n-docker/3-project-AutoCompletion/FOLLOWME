@@ -1,0 +1,126 @@
+AutoCompletion Explained:
+
+The goal of this project is to mimic hadoop env on local docker and run a mapred job on a small set of text data (still use mac pro 2010).
+The mapred job will return a N-gram counting table to MySQL on local server (1-N prefix; next tailing word; counting frequency).
+In the front-end it connects to DB and return the top 10 frequently used possible results based on User's input.
+
+Process:
+
+1. Setup XAMP (OS, Apache, MySQL, PHP)
+    install https://www.mamp.info/en/
+
+2. Start and get local server ip address so hadoop can talk to MySQL
+    start local server through MAMP and once it is on you will find port/user/pswd info via browser localhost:8888
+    get local ip via: 
+    $ ifconfig | grep inet | grep broadcast  
+        // ifconfig has features for configuring/querying TCP/IP network interface parameters
+
+3. Config MySQL to create table to store mapred output and grant the accessibility for the job to write in data
+
+    e.g. on Mac:
+    $ ./Applications/MAMP/Library/bin/mysql -uroot -proot
+    // enter MySQL
+    $ CREATE DATABASE test;
+    $ USE test;
+    $ CREATE TABLE output(starting_phrase VARCHAR(250), following_word VARCHAR(250), count INT);
+    ----------------------------------------------
+    // for the following: user -> root; pswd -> root
+    ----------------------------------------------
+    $ GRANT ALL ON *.* to 'user'@'ip_address' IDENTIFIED BY 'pswd'; 
+    # enable remote data transfer
+    $ GRANT ALL PRIVILEGES ON *.* TO 'root'@'ip_address' WITH GRANT OPTION;
+    $ CREATE USER 'user'@'%' IDENTIFIED BY 'pswd';
+    $ GRANT ALL PRIVILEGES ON *.* TO 'user'@'%' WITH GRANT OPTION;
+    $ FLUSH PRIVILEGES;
+    // make all GRANT effective immediately. 
+
+4. Start hadoop on docker --> refer to 1-localSetup && 2-dockerSetup if you don't know how to do it.
+
+5. Prepare input data and mysql-connector-java.jar
+    $ hdfs dfs -mkdir /input
+    $ hdfs dfs -put <input data> /input/
+    // no need to create /output dir remember ?
+    $ hdfs dfs -mkdir /mysql
+    $ hdfs dfs -put <mysql-connector-java> /mysql/
+    // put connector: https://dev.mysql.com/downloads/connector/j/  there for the following use
+
+5. Config mapred job script through hadoop DBConfiguration interface.
+    // you can find written job script in /NGram/src/
+   
+    config around something like the following in your driver script
+    "
+    import org.apache.hadoop.mapreduce.lib.db.DBConfiguration;
+    DBConfiguration.configureDB(conf2,
+                     "com.mysql.jdbc.Driver",   // driver class
+                     "jdbc:mysql://ip_address:port/test", // ip_address:port/db_name 
+                     "root",    // user name
+                     "root"); //password
+
+    job2.addArchiveToClassPath(new Path("/mysql/mysql-connector-java-5.1.39-bin.jar"));  // this is where you put "mysql-connector-java-bin.jar"
+    "
+
+6. Compile and run the job on hadoop --> refer to the 1-localSetup if you don't know how to do it.
+    // Note that mapred is an expensive job and you might need at least 4G memory to deal with dataset larger than 10+ MB
+
+---------------------------------------------------------------------------------
+### Debug ### 
+
+1. INFO mapreduce.Job: Task Id : attempt_1474070831522_0002_r_000000_1, Status : FAILED
+Error: java.io.IOException: null, message from server: "Host 'x.x.x.x' is not allowed to connect to this MySQL server"
+
+something wrong with ...
+    $ GRANT ALL ON *.* to 'user'@'id_address' IDENTIFIED BY 'pswd'; //enable remote data transfer
+    $ FLUSH PRIVILEGES;
+
+
+2. Communication links failure
+
+something wrong with ... config mapred job Driver.java
+
+---------------------------------------------------------------------------------
+
+
+7. If everything goes well you should be able to see output in MySQL table now
+    $ SELECT * FROM output // table name
+    // feel good about it if you are here
+
+8. Put your front-end code under /MAMP/htdocs   
+    // e.g. on Mac the path should be /Application/MAMP/htdocs
+
+9. Config your front-end code so it talks to your DB
+    // you can find example front-end code in autocomplete_frontEnd/ajax_refresh.php
+
+    // typically in the following example:
+    // config 'DBUSER', 'DBPASS', 'DBNAME' and 'port' following the "dbname=test" in new PDO()  // php database object
+    // you can also config the order and the number of trailing word predications shown in the webpage
+-----------------------------------------------------------------------
+<?php
+// PDO connect *********
+define ('DBUSER', 'root');
+define ('DBPASS','root');
+define ('DBNAME','test');
+
+function connect() {
+    return new PDO('mysql:host=localhost;dbname=test;port=8889', 'root', 'root', array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"));
+}
+
+$pdo = connect();
+$keyword = $_POST['keyword'].'%';
+$sql = "SELECT * FROM output WHERE starting_phrase LIKE (:keyword) ORDER BY count DESC LIMIT 0, 10";
+$query = $pdo->prepare($sql);
+$query->bindParam(':keyword', $keyword, PDO::PARAM_STR);
+$query->execute();
+$list = $query->fetchAll();
+foreach ($list as $rs) {
+        // put in bold the written text
+        //$country_name = str_replace($_POST['keyword'], '<b>'.$_POST['keyword'].'</b>', $rs['following_word']);
+        $predictor = $rs['starting_phrase'] . ' ' . $rs['following_word'];
+        // add new option
+    echo '<li onclick="set_item(\''.str_replace("'", "\'", $rs['following_word']).'\')">'.$predictor.'</li>';
+}
+?>
+---------------------------------------------------------------------------
+    // now if you restart your server and put localhost:8888 on your browser
+    // you should see autoCompletion as desired.
+
+10. Congrats.

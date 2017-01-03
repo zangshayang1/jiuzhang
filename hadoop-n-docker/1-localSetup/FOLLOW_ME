@@ -1,0 +1,109 @@
+1)
+$ java -version
+
+# make sure java is installed otherwise download java JDK.
+
+2)
+# enable "remote login" in system preference - shared.
+
+3)
+$ ssh localhost
+
+# check if you can login localhost without pswd.
+
+# if not, run:
+$ ssh­keygen ­t dsa -P '' ­f ~/.ssh/id_dsa
+$ cat ~/. ssh /id_dsa.pub >> ~/.ssh/authorized_keys
+
+4)
+$ brew install hadoop
+
+# get hadoop distribution, it is located at: /usr/local/Cellar/hadoop/X.X.X (version)/
+
+5.1) CONFIG
+$ vim /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/core­site.xml
+
+<configuration>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://localhost:9000</value>
+</property>
+</configuration>
+
+# config where namenode runs in the cluster
+
+5.2) CONFIG
+$ vim /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/mapred-site.xml.template
+
+<configuration>
+    <property>
+        <name>mapreduce.framework.name</name>
+        <value>yarn</value>
+    </property>
+</configuration>
+
+# and then, specify which which MR framework we are using by:
+$ cp /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/mapred-site.xml.template /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/mapred-site.xml
+
+
+5.3) CONFIG
+$ vim /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/hdfs-site.xml
+
+<configuration>
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:/usr/local/hadoop/yarn_data/hdfs/namenode</value>
+        <description>NameNode directory for namespace and transaction logs storage.</description>
+    </property>
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>file:/usr/local/hadoop/yarn_data/hdfs/datanode</value>
+        <description>DataNode directory</description>
+    </property>
+    <property>
+        <name>dfs.replication</name>
+        <value>2</value>
+    </property>
+</configuration>
+
+
+5.4) CONFIG
+$ vim /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/yarn-site.xml
+
+<configuration>
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+    </property>
+</configuration>
+
+
+* Note * the above configuration ensures that local machine can talk to HDFS and YARN resource manager. (YARN stands for "yet another resource negotiator...")
+
+6) STATR HADOOP
+$ /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/bin/hdfs namenode -format
+            # if you want to re-init hdfs namenode -format again, you need to "rm -r /usr/local/hadoop/yarn_data/*" first.
+$ /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/sbin/start-dfs.sh
+$ /usr/local/Cellar/hadoop/X.X.X/libexec/etc/hadoop/sbin/start-yarn.sh
+
+
+7) TEST RUNNING
+# create test input
+$ hdfs dfs -mkdir /input
+$ echo "this is file1" > file1
+$ echo "this is file2" > file2
+$ hdfs dfs -put file* /input/
+# compile
+$ javac -classpath `yarn classpath` -d . WordCount.java   
+            # yarn classpath returns the paths for MR classes necessary to compile a file.java
+            # the name - "WordCount.java" must go with the applicable class name - "public class WordClass".
+            # this cmd will return a few WordCount*.class built on the src.java
+( 
+OR you can:
+$ hadoop com.sun.tools.javac.Main *.java
+            # hadoop built-in alternative to compile file.java
+)
+$ jar cf wc.jar WordCount*.class
+$ hadoop jar wc.jar WordCount /input /output
+            # don't forget the class name
+
