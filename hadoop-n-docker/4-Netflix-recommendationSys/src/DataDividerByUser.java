@@ -31,8 +31,8 @@ public class DataDividerByUser {
 	public static class DataDividerReducer extends Reducer<IntWritable, Text, IntWritable, Text> {
 		// reduce method
 		@Override
-                    // reducer takes in the output from shuffle, which are sorted according to their key
-                    // here to accomplish grouping data by USR_ID.
+		// reducer takes in the output from shuffle, which are sorted according to their key
+		// here to accomplish grouping data by USR_ID.
 		public void reduce(IntWritable key, Iterable<Text> values, Context context)
 				throws IOException, InterruptedException {
 

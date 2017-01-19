@@ -27,17 +27,17 @@ public class RecommenderListGenerator {
 		//filter out watched movies
 		//match movie_name to movie_id
 		Map<Integer, List<Integer>> watchHistory = new HashMap<>();
-		
+
 		@Override
 		protected void setup(Context context) throws IOException {
-			//read movie watch history 
+			//read movie watch history
 			Configuration conf = context.getConfiguration();
 			String filePath = conf.get("watchHistory");
 			Path pt = new Path(filePath);
 			FileSystem fs = FileSystem.get(conf);
 			BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(pt)));
 			String line = br.readLine();
-			
+
 			//user,movie,rating
 			while(line != null) {
 				int user = Integer.parseInt(line.split(",")[0]);
@@ -58,7 +58,7 @@ public class RecommenderListGenerator {
 		@Override
 		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
 			//recommender user \t movie:rating
-                        // filter through watchHistory and output user: {[(unwatch1:likelihood), (unwatch2, likelihood)...]}
+			// filter through watchHistory and output user: {[(unwatch1:likelihood), (unwatch2, likelihood)...]}
 			String[] tokens = value.toString().split("\t");
 			int user = Integer.parseInt(tokens[0]);
 			int movie = Integer.parseInt(tokens[1].split(":")[0]);
@@ -84,7 +84,7 @@ public class RecommenderListGenerator {
 			String line = br.readLine();
 			//movieid,movie_name
 			while(line != null) {
-                                // just cache in {movieID: movieTitle} pairs
+				// just cache in {movieID: movieTitle} pairs
 				int movie_id = Integer.parseInt(line.trim().split(",")[0]);
 				movieTitles.put(movie_id, line.trim().split(",")[1]);
 				line = br.readLine();
@@ -123,7 +123,7 @@ public class RecommenderListGenerator {
 		job.setOutputFormatClass(TextOutputFormat.class);
 		job.setOutputKeyClass(IntWritable.class);
 		job.setOutputValueClass(Text.class);
-		
+
 		TextInputFormat.setInputPaths(job, new Path(args[2]));
 		TextOutputFormat.setOutputPath(job, new Path(args[3]));
 

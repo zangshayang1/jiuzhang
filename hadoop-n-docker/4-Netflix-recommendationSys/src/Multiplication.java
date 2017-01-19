@@ -36,21 +36,21 @@ public class Multiplication {
 			Path pt = new Path(filePath);
 			FileSystem fs = FileSystem.get(conf);
 			// BufferReader br <----> StringBuilder sb
-                        // Before the actual mapper starts to crunch the input piece by piece 
-                        // the Setup process will read in the specified input file line by line and figure out the denominator map.
-                        BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(pt)));
+			// Before the actual mapper starts to crunch the input piece by piece
+			// the Setup process will read in the specified input file line by line and figure out the denominator map.
+			BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(pt)));
 			String line = br.readLine();
-			
+
 			while(line != null) {
 				//movieA: movieB \t relation
 				String[] tokens = line.toString().trim().split("\t");
 				String[] movies = tokens[0].split(":");
-				
+
 				int movie1 = Integer.parseInt(movies[0]);       // movieA id
 				int movie2 = Integer.parseInt(movies[1]);       // movieB id
 				int relation = Integer.parseInt(tokens[1]);     // co-occurrence count
-			        
-                                // created a basic but specific datastructure - a tuple - for the purpose of convenient storage and retrieval.        
+
+				// created a basic but specific datastructure - a tuple - for the purpose of convenient storage and retrieval.
 				MovieRelation movieRelation = new MovieRelation(movie1, movie2, relation);
 				if(movieRelationMap.containsKey(movie1)) {
 					movieRelationMap.get(movie1).add(movieRelation);
@@ -63,7 +63,7 @@ public class Multiplication {
 				line = br.readLine();
 			}
 			br.close();
-			
+
 			for(Map.Entry<Integer, List<MovieRelation>> entry: movieRelationMap.entrySet()) {
 				int sum = 0;
 				for(MovieRelation relation: entry.getValue()) {
@@ -71,38 +71,39 @@ public class Multiplication {
 				}
 				//movieA sum(relations)
 				denominator.put(entry.getKey(), sum);
-                            
-			} // so basically the setup process is preparing a HashMap - denominator - for use in the following Multiplication.
-                          // [movieA:movieB, C1 \t movieA:movieC, C2] -------- input value
-                          // -> {movieA: [(movieA: movieB, C1), (movieA: movieC, C2)]} ----- movieRelationMap
-                          // -> {movieA: sum(C1, C2, C3 ... Cn)} ------denominator
-			
+			}
+			// so basically the setup process is preparing a HashMap - denominator - for use in the following Multiplication.
+			// [movieA:movieB, C1 \t movieA:movieC, C2] -------- input value
+			// -> {movieA: [(movieA: movieB, C1), (movieA: movieC, C2)]} ----- movieRelationMap
+			// -> {movieA: sum(C1, C2, C3 ... Cn)} ------denominator
 		}
 
 		// map method
 		@Override
 		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-		        // here the mapper takes in the original input for score info, which hasn't been digested so far
-                        //input user,movie,rating
+			// here the mapper takes in the original input for score info, which hasn't been digested so far
+			//input user,movie,rating
 			//output user:movie score
 			String[] tokens = value.toString().trim().split(",");
 			int user = Integer.parseInt(tokens[0]);
 			int movie = Integer.parseInt(tokens[1]);
 			double rating = Double.parseDouble(tokens[2]);
-			
+
 			for(MovieRelation relation : movieRelationMap.get(movie)) {
-                            // movieRelation -> {movie: [(movie, movieX1, coocurrence), (movie, movieX2, cooccurrence)... ]}
+				// movieRelation -> {movie: [(movie, movieX1, coocurrence), (movie, movieX2, cooccurrence)... ]}
 				double score = rating * relation.getRelation(); // movieScore * movie-movieX coocurrence
 				//normalize - now you see why it is double for score ?
-				score = score/denominator.get(relation.getMovie2()); 
-                                // movieScore * movie-X-cooccurrence / sum(occurrence of X)
-                                // INTERPRETATION: 
-                                // for the user, who watch movie, but did watch X, this score shows how likely he will like X if recommended.
+				score = score/denominator.get(relation.getMovie2());
+				// ---------------------------------------------------------
+				// movieScore * movie-X-cooccurrence / sum(occurrence of X)
+				// ---------------------------------------------------------
+				// INTERPRETATION:
+				// for the user, who watched movie, but didn't watch X, this score shows how likely he will like X if recommended.
 				DecimalFormat df = new DecimalFormat("#.00");
 				score = Double.valueOf(df.format(score));
 				context.write(new Text(user + ":" + relation.getMovie2()), new DoubleWritable(score));
-                                // for each movie this user watched, a score will be calculated to evaluate how similar movie and X are.
-                                // during reducer process, the scores will be summed up to represent a general likelihood that the user will like X.
+				// for each movie this user watched, a score will be calculated to evaluate how similar movie and X are.
+				// during reducer process, the scores will be summed up to represent a general likelihood that the user will like X.
 				// output -> user: movieX score
 			}
 		}
@@ -127,23 +128,23 @@ public class Multiplication {
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
 		conf.set("coOccurrencePath", args[0]);
-		
+
 		Job job = Job.getInstance();
 		job.setMapperClass(MultiplicationMapper.class);
 		job.setReducerClass(MultiplicationReducer.class);
-		
+
 		job.setJarByClass(Multiplication.class);
-		
+
 		job.setInputFormatClass(TextInputFormat.class);
 		job.setOutputFormatClass(TextOutputFormat.class);
 		job.setOutputKeyClass(IntWritable.class);
 		job.setOutputValueClass(Text.class);
 		job.setMapOutputKeyClass(Text.class);
 		job.setMapOutputValueClass(DoubleWritable.class);
-		
+
 		TextInputFormat.setInputPaths(job, new Path(args[1]));
 		TextOutputFormat.setOutputPath(job, new Path(args[2]));
-		
+
 		job.waitForCompletion(true);
 	}
 }

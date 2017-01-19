@@ -1,21 +1,26 @@
 This project was originated from the NetFlix competition in building a recommendation system.
 
 Given datasets include:
-    1. {user, watched_movie, rating} records. 
+    1. {user, watched_movie, rating} records.
     2. {moviesID: movieTitle} database.
 
-OK. Model: Item-based Collaboritive Filtering. 
+OK. Model: Item-based Collaboritive Filtering.
     Why this model? We have more users than movies. We need to shrink the matrix size as much as possible.
 
 Here is what we do:
 
-1. Use users' watch history to generate co-occurrence matrix. 
-    why? Co-occurrence matrix is part of the model that measures the similarity between movies according to users' ratings.
+1. Group movie scoring data according to userID because we are doing an item-based collaborative filtering and we need item-based coOccurrenceMatrix.
+  why? Co-occurrence matrix is part of the model that measures the similarity between movies according to users' ratings.
 
-2. Use users' ratings to calculate the likelihood that a user will watch a movie.
-    How? 
+2. Now you have the coOccurrenceMatrix, you then need to calculate the total independent occurrence of each movie for normalization purpose in the future.
+  why? movieA_score * movieA_movieX_coOccurrence / movieX_occurrence = how much we'd like to recommend movieX based on its similarity with movieA to users who watched movieA.
+
+3. Use users' ratings to calculate the likelihood that a user will watch a movie.
+
+  More explanation:
 
     Likelihood that a user who only watched movie1, will like to watch movieX = movie1_ratings * movie1_movieX_co-occurrence / sum(movieX_occurrence)
-    
-    Looping over the users' watch history, you will get a overall likelihood that the user will like to watch movieX.
 
+    Likelihood that a user would like to watch movieX = the average score of movieX calculated as above across all the movies in this user's watching history.
+
+    Looping over the users' watch history, you will get a overall likelihood that the user will like to watch movieX.
