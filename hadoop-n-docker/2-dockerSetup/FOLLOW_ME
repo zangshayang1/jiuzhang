@@ -13,8 +13,9 @@ The hadoop frame that you are going to run is burnt into the following hadoop-do
 3. create hadoop network the first time you want to run more than one hadoop node on docker
     $ docker create network --driver=bridge hadoop
     # bridge networks are isolated networks on a single Engine installation
+    # --driver option allow user to provider different network drive to use to test their applications that are based on a remote cluster.
     # you are creating a group with currently no member in it
-    # later when you init a contain, you can specify --net=hadoop to make it join the network
+
 
 3. refer to the following script to start docker container
 
