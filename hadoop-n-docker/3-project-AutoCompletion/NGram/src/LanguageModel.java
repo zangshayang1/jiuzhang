@@ -35,9 +35,9 @@ public class LanguageModel {
 				return;
 			}
 			String line = value.toString().trim();
-			
+
 			// split phrase and count
-                        // "\t" is the default separator of reducer output
+			// "\t" is the default separator of reducer output
 			String[] wordsPlusCount = line.split("\t");
 			String[] words = wordsPlusCount[0].split("\\s+");
 			int count = Integer.valueOf(wordsPlusCount[wordsPlusCount.length - 1]);
@@ -48,8 +48,8 @@ public class LanguageModel {
 			}
 
 			// output key and value
-                        // during NGram class, we produced result such as (word1 + word2 + ... + word5, count)
-                        // now it produces (word1 + " " + word2... + word4, word5 = count)
+			// during NGram class, we produced result such as (word1 + word2 + ... + word5, count)
+			// now it produces (word1 + " " + word2... + word4, word5 = count)
 			StringBuilder sb = new StringBuilder();
 			for (int i = 0; i < words.length - 1; i++) {
 				sb.append(words[i]).append(" ");
@@ -73,16 +73,19 @@ public class LanguageModel {
 		}
 
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-                        
-			// this: [is=1000, book=10] -> key: iterableValues
-                        // for each key, reducer does the following
-			// reverse order to get the max count every time
+
+			// Shuffle between the above mapper and this reducer puts together the keyword - 'word1 + " " + word2... + word4'.
+			// for each keyword as an input, such as "this is", there will be values such as ["his = 50", "hers = 50", "a = 150", ...]
+
 			TreeMap<Integer, List<String>> tm = new TreeMap<Integer, List<String>>(Collections.reverseOrder());
+			// In the TreeMap:
+			// {150: "a", 50: ["his", "hers"]}
+			// reverse order to get the max count every time
 			for (Text val : values) {
 				String cur_val = val.toString().trim();
 				String word = cur_val.split("=")[0].trim();
 				int count = Integer.parseInt(cur_val.split("=")[1].trim());
-                                // it sorts and stores every value in a TreeMap, count as key, ArrayList of word of the same frequency is the value.
+				// it sorts and stores every value in a TreeMap, count as key, ArrayList of word of the same frequency is the value.
 				if(tm.containsKey(count)) {
 					tm.get(count).add(word);
 				}
@@ -94,27 +97,29 @@ public class LanguageModel {
 			}
 
 			Iterator<Integer> iter = tm.keySet().iterator();
-			// for each TreeMap, it picks the highest n counts and write output to DB 
-                        // according predefined output format that you can find in DB class
+			// for each TreeMap, it picks the highest n counts and write output to DB
+			// according predefined output format that you can find in DB class
 			for(int j=0 ; iter.hasNext() && j < n; j++) {
 				int keyCount = iter.next();
 				List<String> words = tm.get(keyCount);
 				for(String curWord: words) {
 					context.write(new DBOutputWritable(key.toString(), curWord, keyCount), NullWritable.get());
 					j++;
-                                        // public DBOutputWritable(String starting_phrase, String following_word, int count)
-                                        // now you should be able to get the following results in DB
-                                        /*
-                                            search_key: this, autocompletion: is - count 100
-                                                                            : however - count 10
-                                                                            ....
-                                            search_key: this is, autocompletion: his - count 50
-                                                                                 her - count 50
-                                                                                 ...
-                                            ...
-                                        */
-                                        
-                                        // NullWritable corresponds to the void in the reducer header
+					// public DBOutputWritable(String starting_phrase, String following_word, int count)
+					// now you should be able to get the following results in DB
+					/*
+					search_key: this, autocompletion: is - count 100
+																					: however - count 10
+										....
+										search_key: this is, autocompletion: his - count 50
+																											 : hers - count 50
+										...
+										...
+					 */
+					 // these above are just for 1 word autoCompletion,
+					 // if you chop off 2 words during the mapper stage, you can do 2 word autoCompletion provided with sufficient data.
+					 
+					 // NullWritable corresponds to the void in the reducer header
 				}
 			}
 		}
